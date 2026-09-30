@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Amiibo Tournament Lineup Builder</title>
+<title>Super Smash Bros. League Lineup Builder</title>
 <style>
 :root{--bg:#f4f1ea;--card:#fff;--ink:#1d2330;--mut:#667;--acc:#c8322b;--line:#d9d3c5;--warn:#b3261e}
 @media(prefers-color-scheme:dark){:root{--bg:#161a22;--card:#212632;--ink:#eee;--mut:#9aa;--line:#38404f;--warn:#ff8a80}}
@@ -23,7 +23,7 @@ input[type=number]{width:60px}.combo{position:relative;display:inline-block}.com
 dialog{width:min(640px,94vw);border:1px solid var(--line);background:var(--card);color:var(--ink)}dialog textarea{width:100%;height:380px;font:13px monospace}
 .tot{font-weight:bold}
 </style></head><body>
-<header><h1>Amiibo Lineup Builder</h1>
+<header><h1>Super Smash Bros. League Lineup Builder</h1>
 <div class="seg"><button id="bMain" class="on">Main Season</button><button id="bPlay">Playoffs</button></div>
 <button id="bText" class="seg" style="padding:6px 14px;border:1px solid var(--bg);background:none;color:inherit;cursor:pointer">Show as Plain Text</button></header>
 <main id="app">Loading…</main><div id="tip"></div>
@@ -98,7 +98,7 @@ const isMii=n=>/^Mii (Brawler|Swordfighter|Gunner)$/.test(n);
 const spOf=c=>c.sp.map(s=>D.s[s.cb.get()]).filter(Boolean);
 function spOpts(c,j){const fi=D.f.find(f=>f.n==c.fc.get()),others=c.sp.filter((_,k)=>k!=j).map(s=>D.s[s.cb.get()]).filter(Boolean),sum=others.reduce((a,s)=>a+s.p,0);
  if(others.some(s=>s.p>=3))return[];
- return Object.values(D.s).filter(s=>(!others.length||s.p<=3-sum)&&!(fi&&s.n=='Meloetta (Aria Forme)'&&fi.mel)&&!(fi&&s.n=='Celebi'&&fi.cel)).map(s=>s.label)}
+ return Object.values(D.s).filter(s=>!others.length||s.p<=3-sum).map(s=>s.label)}
 function upd(){
  document.body.classList.toggle('playoffs',mode=='playoffs');
  [mapSec.main,mapSec.back].forEach(s=>{const m=D.maps.find(x=>x.n==s.map.get());
@@ -110,12 +110,12 @@ function upd(){
  cards.forEach((c,i)=>{const name=c.fc.get(),fi=D.f.find(f=>f.n==name),W=[];
   c.mii.forEach(m=>m.l.classList.toggle('hide',!isMii(name)));c.pt.classList.toggle('hide',name!='Pokemon Trainer');c.pm.classList.toggle('hide',name!='Pyra/Mythra');
   c.cost.classList.toggle('hide',isMii(name));c.costT.classList.toggle('hide',!isMii(name));
-  c.sp.forEach(s=>{const v=D.s[s.cb.get()];if(v&&fi&&((v.n=='Meloetta (Aria Forme)'&&fi.mel)||(v.n=='Celebi'&&fi.cel)))s.cb.set('')});
   const sps=c.sp.map(s=>D.s[s.cb.get()]);const has=sps.filter(Boolean);
   c.sp.forEach((s,j)=>{const big=has.some((x,k)=>x&&sps.indexOf(x)!=j&&x.p>=3);s.cb.inp.disabled=big&&!sps[j]});
   const a=+c.atk.value,d=+c.def.value,sup=has.reduce((x,s)=>x+s.p,0);c.sup.textContent='Support +'+sup;
   if(a>5||d>5)W.push('You can only have a maximum of 5 points in Attack or Defense.');
   if(has.some((s,k)=>spCount[s.label]>1||has.findIndex(y=>y.label==s.label)!=k))W.push('You cannot select duplicate Spirits.');
+  has.forEach(s=>{if(fi&&((s.n=='Meloetta (Aria Forme)'&&fi.mel)||(s.n=='Celebi'&&fi.cel)))W.push(name+' is banned from '+s.n+'.')});
   has.forEach(s=>{if(d>s.g)W.push('You cannot select '+s.n+' with a Defense of '+d+'.')});
   if(name&&spreads.some((x,k)=>k!=i&&x==spreads[i]))W.push('Another fighter has the same Attack/Defense/Support spread.');
   const max=(fi?fi.max:0)+has.reduce((x,s)=>x+(mode=='main'?s.e:s.pf),0),t=a+d+sup;
