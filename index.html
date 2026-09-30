@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Amiibo Tournament Lineup Builder</title>
+<style>
+:root{--bg:#f4f1ea;--card:#fff;--ink:#1d2330;--mut:#667;--acc:#c8322b;--line:#d9d3c5;--warn:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#161a22;--card:#212632;--ink:#eee;--mut:#9aa;--line:#38404f;--warn:#ff8a80}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Trebuchet MS",Verdana,sans-serif}
+header{position:sticky;top:0;z-index:20;background:var(--ink);color:var(--bg);padding:10px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0 auto 0 0}
+.seg button{border:1px solid var(--bg);background:none;color:inherit;padding:6px 14px;cursor:pointer}
+.seg button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+button{font:inherit}main{max-width:900px;margin:16px auto;padding:0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:14px}
+.card h2{margin:0 0 10px;font-size:16px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}
+label{font-size:13px;color:var(--mut)}input,select{font:inherit;padding:5px 7px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+input[type=number]{width:60px}.combo{position:relative;display:inline-block}.combo input{width:260px}
+.list{position:absolute;left:0;top:100%;z-index:10;width:max(100%,260px);max-height:220px;overflow:auto;background:var(--card);border:1px solid var(--line);display:none;box-shadow:0 4px 12px #0003}
+.list div{padding:4px 8px;cursor:pointer}.list div:hover{background:var(--acc);color:#fff}
+.warn{color:var(--warn);font-weight:bold;font-size:13px}.warns{margin-bottom:8px}.warns div:before{content:"⚠ "}
+.hide,.playoffs .main-only{display:none!important}
+#tip{position:fixed;z-index:99;max-width:340px;background:#111;color:#fff;padding:7px 10px;border-radius:4px;font-size:13px;pointer-events:none;display:none}
+.trash{border:1px solid var(--line);background:none;cursor:pointer;border-radius:4px;color:var(--ink)}
+dialog{width:min(640px,94vw);border:1px solid var(--line);background:var(--card);color:var(--ink)}dialog textarea{width:100%;height:380px;font:13px monospace}
+.tot{font-weight:bold}
+</style></head><body>
+<header><h1>Amiibo Lineup Builder</h1>
+<div class="seg"><button id="bMain" class="on">Main Season</button><button id="bPlay">Playoffs</button></div>
+<button id="bText" class="seg" style="padding:6px 14px;border:1px solid var(--bg);background:none;color:inherit;cursor:pointer">Show as Plain Text</button></header>
+<main id="app">Loading…</main><div id="tip"></div>
+<dialog id="dlg"><textarea id="out" readonly></textarea><p><button onclick="dlg.close()">Close</button></p></dialog>
+<script>
+const $=(t,p={},...k)=>{const e=document.createElement(t);Object.assign(e,p);k.forEach(x=>e.append(x));return e};
+function csv(t){const r=[];let row=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];
+ if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}
+ else if(ch=='"')q=true;else if(ch==','){row.push(c);c=''}
+ else if(ch=='\n'||ch=='\r'){if(ch=='\r'&&t[i+1]=='\n')i++;row.push(c);r.push(row);row=[];c=''}else c+=ch}
+ if(c||row.length){row.push(c);r.push(row)}return r}
+const load=f=>fetch('data/'+f+'.csv').then(r=>{if(!r.ok)throw Error(f);return r.text()}).then(csv);
+const tipEl=document.getElementById('tip');
+function tipOn(el,fn){el.addEventListener('mouseenter',()=>{const h=fn();if(!h)return;tipEl.innerHTML=h;tipEl.style.display='block'});
+ el.addEventListener('mousemove',e=>{tipEl.style.left=Math.min(e.clientX+14,innerWidth-360)+'px';tipEl.style.top=e.clientY+16+'px'});
+ el.addEventListener('mouseleave',()=>tipEl.style.display='none')}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// Autocomplete combo box
+function combo(ph,opts,onChange,tip){let val='';const inp=$('input',{placeholder:ph,autocomplete:'off'}),list=$('div',{className:'list'}),el=$('span',{className:'combo'},inp,list);
+ const show=()=>{const q=inp.value.toLowerCase(),o=opts().filter(x=>x.toLowerCase().includes(q)).sort((a,b)=>b.toLowerCase().startsWith(q)-a.toLowerCase().startsWith(q));
+  list.innerHTML='';o.forEach(x=>{const d=$('div',{textContent:x});d.onmousedown=e=>{e.preventDefault();set(x,true);list.style.display='none';inp.blur()};
+   if(tip)tipOn(d,()=>tip(x));list.append(d)});list.style.display=o.length?'block':'none'};
+ const set=(v,fire)=>{val=v;inp.value=v;if(fire)onChange&&onChange(v)};
+ inp.onfocus=()=>{inp.select();show()};inp.oninput=show;
+ inp.onblur=()=>{list.style.display='none';if(inp.value==='' && val!==''){set('',true)}else inp.value=val};
+ if(tip)tipOn(inp,()=>val&&tip(val));
+ return{el,inp,get:()=>val,set:v=>set(v,false)}}
+let D={},mode='main',fighters=[],benchC,bench2C,mapSec={},cards=[];
+Promise.all(['mapList','musicList','aiList','fighterList','spiritList'].map(load)).then(([m,mu,ai,f,s])=>{
+ D.maps=m.filter(r=>r[0]).map(r=>({n:r[0].trim(),om:r[1].trim()=='1',ser:(r[2]||'').trim()}));
+ D.mHead=mu[0].map(x=>x.trim());D.mCols={};D.mHead.forEach((h,i)=>D.mCols[h]=mu.slice(1).map(r=>(r[i]||'').trim()).filter(Boolean));
+ D.ai=ai.filter(r=>r[0]).map(r=>({n:r[0].trim(),d:r[1]||''}));
+ D.f=f.filter(r=>r[0]).map(r=>({n:r[0].trim(),max:+r[1],mel:r[2].trim()=='1',cel:r[3].trim()=='1'}));
+ D.s={};s.filter(r=>r[0]).forEach(r=>{const o={n:r[0].trim(),p:+r[1],c:(r[2]||'').trim(),d:(r[3]||'').trim(),e:+r[4]||0,pf:+r[5]||0,g:+r[6]};o.label=o.n+' ('+o.p+')';D.s[o.label]=o});
+ build()}).catch(e=>document.getElementById('app').textContent='Could not load CSV data ('+e.message+'). Serve the site over http(s) — e.g. GitHub Pages or "python -m http.server" — not file://.');
+function fighterOpts(self){const used=new Set([benchC,bench2C,...cards.map(c=>c.fc)].filter(c=>c&&c!==self).map(c=>c.get()));return D.f.map(f=>f.n).filter(n=>!used.has(n))}
+function mapSection(title,req){const s={};const w=$('div',{className:'warn'}),form=$('select'),mus=combo('Music',()=>musOpts(s),()=>{}),
+ mp=combo('Select map',()=>D.maps.map(m=>m.n),n=>{const m=D.maps.find(x=>x.n==n);setForm(s);mus.set('Random');upd()});
+ s.map=mp;s.mus=mus;s.form=form;s.w=w;s.title=title;form.onchange=upd;
+ s.el=$('div',{className:'card'+(req?'':' main-only')},$('h2',{textContent:title}),$('div',{className:'row'},mp.el,form,w),$('div',{className:'row'},$('label',{textContent:'Music '}),mus.el));
+ if(!mp.get())setForm(s);s.req=req;return s}
+function setForm(s){const m=D.maps.find(x=>x.n==s.map.get());s.form.innerHTML='';const o=m&&m.om?['Omega Form','Battlefield Form']:['Normal Form','Omega Form','Battlefield Form'];o.forEach(x=>s.form.append($('option',{textContent:x})))}
+function musOpts(s){const m=D.maps.find(x=>x.n==s.map.get());if(!m)return['Random'];let l=[];
+ if(m.ser=='SMASH')l=[...new Set(Object.values(D.mCols).flat())];else if(m.ser!='NONE'&&D.mCols[m.ser])l=D.mCols[m.ser];return['Random',...l]}
+function build(){const app=document.getElementById('app');app.innerHTML='';
+ mapSec.main=mapSection('Map',true);mapSec.back=mapSection('Backup Map',false);mapSec.back.el.classList.add('main-only');
+ mapSec.main.el.after;const b1=$('div',{className:'card'}),b2=$('div',{className:'card main-only'});
+ benchC=combo('Select bench',()=>fighterOpts(benchC),upd);bench2C=combo('Select second bench',()=>fighterOpts(bench2C),upd);
+ const bw=$('span',{className:'warn'});b1.append($('h2',{textContent:'Bench'}),$('div',{className:'row'},benchC.el,bw));b2.append($('h2',{textContent:'Second Bench'}),$('div',{className:'row'},bench2C.el));
+ benchC.w=bw;
+ app.append(mapSec.main.el,mapSec.back.el,b1,b2);
+ for(let i=0;i<5;i++){const c=fighterCard(i);cards.push(c);app.append(c.el)}upd()}
+function fighterCard(i){const c={},warns=$('div',{className:'warns'}),
+ fc=combo('Select fighter',()=>fighterOpts(fc),upd),extra=$('span',{className:'row'}),
+ mii=['Neutral','Side','Up','Down'].map(l=>{const n=$('input',{type:'number',min:1,max:3,value:1,onchange:upd});return{n,l:$('label',{textContent:l+' '},n)}}),
+ pt=$('select',{onchange:upd},...['Squirtle','Ivysaur','Charizard'].map(x=>$('option',{textContent:x+' Start'}))),
+ pm=$('select',{onchange:upd},$('option',{textContent:'Pyra'}),$('option',{textContent:'Mythra'})),
+ cost=$('select',{onchange:upd},...[1,2,3,4,5,6,7,8].map(n=>$('option',{textContent:'Costume '+n}))),costT=$('input',{placeholder:'Costume',oninput:upd}),
+ nick=$('input',{maxLength:9,placeholder:'Nickname (max 9)',oninput:upd}),
+ atk=$('input',{type:'number',min:0,max:6,value:0,onchange:upd}),def=$('input',{type:'number',min:0,max:6,value:0,onchange:upd}),
+ sup=$('span',{className:'tot'}),tot=$('div',{className:'tot'}),
+ sp=[0,1,2].map(j=>{const cb=combo('Spirit '+(j+1),()=>spOpts(c,j),upd,l=>{const s=D.s[l];return s?'<b>'+esc(s.c)+'</b>: '+esc(s.d):''});
+  const t=$('button',{className:'trash',textContent:'🗑',title:'Clear spirit',onclick:()=>{cb.set('');upd()}});return{cb,el:$('div',{className:'row'},cb.el,t)}}),
+ ai=combo('Select AI',()=>D.ai.map(a=>a.n),upd,n=>{const a=D.ai.find(x=>x.n==n);return a?esc(a.d):''});
+ Object.assign(c,{fc,warns,mii,pt,pm,cost,costT,nick,atk,def,sup,tot,sp,ai,extra,i});
+ extra.append(...mii.map(m=>m.l),pt,pm);
+ c.costWrap=$('span',{},cost,costT);
+ c.el=$('div',{className:'card'},$('h2',{textContent:'Fighter '+(i+1)}),warns,$('div',{className:'row'},fc.el,extra,c.costWrap),$('div',{className:'row'},nick),
+  $('div',{className:'row'},$('label',{textContent:'Attack + '},atk),$('label',{textContent:'Defense + '},def),sup),
+  ...sp.map(s=>s.el),tot,$('div',{className:'row'},$('label',{textContent:'AI '}),ai.el));return c}
+const isMii=n=>/^Mii (Brawler|Swordfighter|Gunner)$/.test(n);
+const spOf=c=>c.sp.map(s=>D.s[s.cb.get()]).filter(Boolean);
+function spOpts(c,j){const fi=D.f.find(f=>f.n==c.fc.get()),others=c.sp.filter((_,k)=>k!=j).map(s=>D.s[s.cb.get()]).filter(Boolean),sum=others.reduce((a,s)=>a+s.p,0);
+ if(others.some(s=>s.p>=3))return[];
+ return Object.values(D.s).filter(s=>(!others.length||s.p<=3-sum)&&!(fi&&s.n=='Meloetta (Aria Forme)'&&fi.mel)&&!(fi&&s.n=='Celebi'&&fi.cel)).map(s=>s.label)}
+function upd(){
+ document.body.classList.toggle('playoffs',mode=='playoffs');
+ [mapSec.main,mapSec.back].forEach(s=>{const m=D.maps.find(x=>x.n==s.map.get());
+  if(!m&&s.map.get()){}s.w.textContent=(s.req&&!s.map.get())?'⚠ You need to select a map.':'';
+  if(!s.form.options.length||(m&&(m.om!=(s.form.options[0].textContent=='Omega Form'))))setForm(s)});
+ benchC.w.textContent=benchC.get()?'':'⚠ You need to select a bench.';
+ const spCount={};cards.forEach(c=>spOf(c).forEach(s=>spCount[s.label]=(spCount[s.label]||0)+1));
+ const spreads=cards.map(c=>c.fc.get()?[+c.atk.value,+c.def.value,spOf(c).reduce((a,s)=>a+s.p,0)].join():null);
+ cards.forEach((c,i)=>{const name=c.fc.get(),fi=D.f.find(f=>f.n==name),W=[];
+  c.mii.forEach(m=>m.l.classList.toggle('hide',!isMii(name)));c.pt.classList.toggle('hide',name!='Pokemon Trainer');c.pm.classList.toggle('hide',name!='Pyra/Mythra');
+  c.cost.classList.toggle('hide',isMii(name));c.costT.classList.toggle('hide',!isMii(name));
+  c.sp.forEach(s=>{const v=D.s[s.cb.get()];if(v&&fi&&((v.n=='Meloetta (Aria Forme)'&&fi.mel)||(v.n=='Celebi'&&fi.cel)))s.cb.set('')});
+  const sps=c.sp.map(s=>D.s[s.cb.get()]);const has=sps.filter(Boolean);
+  c.sp.forEach((s,j)=>{const big=has.some((x,k)=>x&&sps.indexOf(x)!=j&&x.p>=3);s.cb.inp.disabled=big&&!sps[j]});
+  const a=+c.atk.value,d=+c.def.value,sup=has.reduce((x,s)=>x+s.p,0);c.sup.textContent='Support +'+sup;
+  if(a>5||d>5)W.push('You can only have a maximum of 5 points in Attack or Defense.');
+  if(has.some((s,k)=>spCount[s.label]>1||has.findIndex(y=>y.label==s.label)!=k))W.push('You cannot select duplicate Spirits.');
+  has.forEach(s=>{if(d>s.g)W.push('You cannot select '+s.n+' with a Defense of '+d+'.')});
+  if(name&&spreads.some((x,k)=>k!=i&&x==spreads[i]))W.push('Another fighter has the same Attack/Defense/Support spread.');
+  const max=(fi?fi.max:0)+has.reduce((x,s)=>x+(mode=='main'?s.e:s.pf),0),t=a+d+sup;
+  c.max=max;c.tot.textContent='Total: '+t+' / '+max;
+  if(fi&&t>max)W.push('Your points are too high.');
+  c.warns.innerHTML='';W.forEach(w=>c.warns.append($('div',{className:'warn',textContent:w})))})}
+function mapLine(s){const n=s.map.get();return n?n+(s.form.value&&s.form.value!='Normal Form'?' ('+s.form.value+')':''):''}
+function text(){const L=[],M=mode=='main';L.push('Map: '+mapLine(mapSec.main),'Music: '+mapSec.main.mus.get());
+ if(M)L.push('Backup Map: '+mapLine(mapSec.back),'Backup Music: '+mapSec.back.mus.get());
+ L.push('','Bench: '+[benchC.get(),M&&bench2C.get()].filter(Boolean).join(', '));
+ cards.forEach(c=>{const n=c.fc.get(),sps=spOf(c);let h=n;
+  if(isMii(n))h+=' ('+c.mii.map(m=>m.n.value).join('')+') ('+c.costT.value+')';
+  else{if(n=='Pokemon Trainer')h+=' ('+c.pt.value+')';if(n=='Pyra/Mythra')h=c.pm.value;h+=' ('+c.cost.value+')'}
+  L.push('',h);if(c.nick.value)L.push(c.nick.value);
+  L.push('Attack +'+c.atk.value+'/Defense +'+c.def.value+'/Support +'+sps.reduce((a,s)=>a+s.p,0));
+  sps.forEach(s=>L.push(s.label));if(c.ai.get())L.push(c.ai.get())});return L.join('\n')}
+bMain.onclick=()=>{mode='main';bMain.className='on';bPlay.className='';upd()};
+bPlay.onclick=()=>{mode='playoffs';bPlay.className='on';bMain.className='';upd()};
+bText.onclick=()=>{out.value=text();dlg.showModal()};
+</script></body></html>
