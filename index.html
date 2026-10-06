@@ -27,7 +27,7 @@ dialog{width:min(640px,94vw);border:1px solid var(--line);background:var(--card)
 <div class="seg"><button id="bMain" class="on">Main Season</button><button id="bPlay">Playoffs</button></div>
 <button id="bText" class="seg" style="padding:6px 14px;border:1px solid var(--bg);background:none;color:inherit;cursor:pointer">Show as Plain Text</button></header>
 <main id="app">Loading…</main><div id="tip"></div>
-<dialog id="dlg"><textarea id="out" readonly></textarea><p><button onclick="dlg.close()">Close</button></p></dialog>
+<dialog id="dlg"><p class="warn" style="font-weight:normal;color:var(--mut)">You can edit or paste a lineup here. "Apply" fills in the site from this text; "Close" discards your edits.</p><textarea id="out" spellcheck="false"></textarea><p><button onclick="applyText()">Apply</button> <button onclick="dlg.close()">Close</button></p></dialog>
 <script>
 const $=(t,p={},...k)=>{const e=document.createElement(t);Object.assign(e,p);k.forEach(x=>e.append(x));return e};
 function csv(t){const r=[];let row=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];
@@ -132,6 +132,43 @@ function text(){const L=[],M=mode=='main';L.push('Map: '+mapLine(mapSec.main),'M
   L.push('',h);if(c.nick.value)L.push(c.nick.value);
   L.push('Attack +'+c.atk.value+'/Defense +'+c.def.value+'/Support +'+sps.reduce((a,s)=>a+s.p,0));
   sps.forEach(s=>L.push(s.label));if(c.ai.get())L.push(c.ai.get())});return L.join('\n')}
+
+const ci=(list,v)=>{v=(v||'').trim().toLowerCase();return list.find(x=>x.toLowerCase()==v)||''};
+function applyText(){
+ const lines=out.value.replace(/\r/g,'').split('\n').map(l=>l.trim()),K={},blocks=[];let cur=[];
+ const keyRe=/^(Backup Map|Backup Music|Map|Music|Bench)\s*:\s*(.*)$/i;
+ lines.concat('').forEach(l=>{if(!l){if(cur.length)blocks.push(cur);cur=[]}else cur.push(l)});
+ const fblocks=[];blocks.forEach(b=>{const ks=b.filter(l=>keyRe.test(l));ks.forEach(l=>{const m=l.match(keyRe);K[m[1].toLowerCase()]=m[2].trim()});if(!ks.length)fblocks.push(b)});
+ // reset
+ [mapSec.main,mapSec.back].forEach(s=>{s.map.set('');s.mus.set('');setForm(s)});
+ benchC.set('');bench2C.set('');
+ cards.forEach(c=>{c.fc.set('');c.ai.set('');c.sp.forEach(s=>s.cb.set(''));c.atk.value=0;c.def.value=0;c.nick.value='';c.costT.value='';c.cost.selectedIndex=0;c.pt.selectedIndex=0;c.pm.selectedIndex=0;c.mii.forEach(m=>m.n.value=1)});
+ const bn=(K.bench||'').split(',').map(x=>x.trim()).filter(Boolean);
+ if(K['backup map']!==undefined||K['backup music']!==undefined||bn.length>1)bMain.click();
+ const setMap=(s,txt,mus)=>{let form='';txt=txt||'';const f=txt.match(/\(([^()]*)\)\s*$/);if(f){form=f[1].trim();txt=txt.slice(0,f.index)}
+  const m=D.maps.find(x=>x.n.toLowerCase()==txt.trim().toLowerCase());if(!m)return;
+  s.map.set(m.n);setForm(s);const o=[...s.form.options].map(x=>x.textContent);const fm=ci(o,form);if(fm)s.form.value=fm;
+  s.mus.set(ci(musOpts(s),mus))};
+ setMap(mapSec.main,K.map,K.music);setMap(mapSec.back,K['backup map'],K['backup music']);
+ const fname=t=>{t=(t||'').trim().toLowerCase();if(t=='pyra'||t=='mythra')t='pyra/mythra';return D.f.find(f=>f.n.toLowerCase()==t)};
+ const setBench=(c,t)=>{const f=fname(t);if(f&&fighterOpts(c).includes(f.n))c.set(f.n)};
+ setBench(benchC,bn[0]);setBench(bench2C,bn[1]);
+ fblocks.slice(0,5).forEach((b,i)=>{const c=cards[i],hd=b[0],gi=hd.indexOf(' (');const nm=(gi<0?hd:hd.slice(0,gi)).trim(),gs=[...hd.matchAll(/\(([^()]*)\)/g)].map(m=>m[1].trim());
+  const f=fname(nm);if(f&&fighterOpts(c.fc).includes(f.n))c.fc.set(f.n);const n=c.fc.get();
+  if(/^pyra$|^mythra$/i.test(nm)&&n)c.pm.value=nm[0].toUpperCase()+nm.slice(1).toLowerCase();
+  gs.forEach(g=>{let m;
+   if((m=g.match(/^(Squirtle|Ivysaur|Charizard) Start$/i))&&n=='Pokemon Trainer')c.pt.value=m[1][0].toUpperCase()+m[1].slice(1).toLowerCase()+' Start';
+   else if(/^Costume [1-8]$/i.test(g)&&!isMii(n))c.cost.value='Costume '+g.slice(-1);
+   else if(/^[1-3]{4}$/.test(g)&&isMii(n))[...g].forEach((d,k)=>c.mii[k].n.value=d);
+   else if(isMii(n)&&!/^[1-3]{4}$/.test(g))c.costT.value=g});
+  let si=b.findIndex((l,k)=>k>0&&/^Attack\s*\+?\s*\d/i.test(l));
+  if(si>=0){if(si>=2)c.nick.value=b[1].slice(0,9);const st=b[si],a=st.match(/Attack\s*\+?\s*(\d+)/i),d=st.match(/Defense\s*\+?\s*(\d+)/i);
+   c.atk.value=a?Math.min(6,+a[1]):0;c.def.value=d?Math.min(6,+d[1]):0}
+  let j=0;b.slice(si>=0?si+1:1).forEach(l=>{
+   const sl=Object.keys(D.s).find(k=>k.toLowerCase()==l.toLowerCase())||Object.keys(D.s).find(k=>D.s[k].n.toLowerCase()==l.toLowerCase());
+   if(sl){if(j<3&&spOpts(c,j).includes(sl)){c.sp[j].cb.set(sl);j++}return}
+   const a=ci(D.ai.map(x=>x.n),l);if(a)c.ai.set(a)})});
+ upd();dlg.close()}
 bMain.onclick=()=>{mode='main';bMain.className='on';bPlay.className='';upd()};
 bPlay.onclick=()=>{mode='playoffs';bPlay.className='on';bMain.className='';upd()};
 bText.onclick=()=>{out.value=text();dlg.showModal()};
