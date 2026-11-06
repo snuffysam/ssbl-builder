@@ -34,7 +34,7 @@ Dive Man,2,Steel Diver Equipped ,Start battles with a Steel Diver. Fire powerful
 Dr. Light,2,Zap-Floor Immunity,Grants immunity to zap floors and stun attacks.,0,0,5
 Dr. Lobe,1,Mr. Saturn Equipped ,Start battles with a Mr. Saturn. Break enemies' shields easily.,0,0,5
 Dr. Wily,2,Jam FS Charge,Slows down the charge rate of the opposition's FS Meter by 40%.,0,0,5
-Dragaux,4,Weight Up x2,Weight boosted by 20%. Ground mobility -40%. Air mobility and jump height -20%.,0,0,5
+Dragaux,3,Weight Up x2,Weight boosted by 20%. Ground mobility -40%. Air mobility and jump height -20%.,0,0,5
 Dungeon Man,1,Falling Immunity,"Grants immunity to tripping from earthquakes, Banana Peels, etc.",0,0,5
 Eggplant Wizard,2,KOs Heal Damage,Recover 20 health each time an enemy is KO'd.,0,0,5
 Ender Dragon,3,Mouthful of Curry Up x2,Start battles with Superspicy Curry breath. Continuously spit out a powerful fire. Lasts about 20 seconds. PLAYOFFS ONLY: You get 2 free stat points if you select this spirit.,0,2,5
@@ -147,3 +147,5 @@ Yakuman Player,1,Critical-Health Attack Up,When above 80% damage - for 20 second
 Yellow Pikmin,2,Energy Shot Attack/Resistance Up,"Deal 10% more damage with energy attacks, and take 40% lower damage from energy attacks.",0,0,5
 Zapfish,1,Electric Attack Up,Increases the power of electricity attacks by 10%.,0,0,5
 Zora,1,Boomerang Equipped ,Start battles with a Boomerang. Deal damage when you throw it and when it returns.,0,0,5
+Parallel Susie,3,Beam Sword Master + Item Attack Up x2,Start battles with a Beam Sword. 170% damage boost to attacks dealt with the Beam Sword. 80% damage boost to attacks dealt with items that are NOT the Beam Sword.,0,0,5
+Ingrid,4,Master Ball Equipped,Sandbag item is turned on Low for the duration of the match. Start battles holding a Master Ball. Throwing the Master Ball will summon an Assist Trophy. Pick up the Assist Trophy to call an assist.,0,0,5
